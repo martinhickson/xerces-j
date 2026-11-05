@@ -6,7 +6,7 @@
 
   <groupId>xerces</groupId>
   <artifactId>xercesImpl</artifactId>
-  <version>2.12.2</version>
+  <version>2.12.3-bravura-1</version>
   <name>Xerces2 Java Parser</name>
   <description>Apache Xerces2 Java parser. Sources stay in src/ and tests/. The release workflow rewrites the groupId before publishing.</description>
   <url>https://github.com/martinhickson/xerces-j</url>
