@@ -47,7 +47,7 @@ public abstract class XMLGrammarParser
     protected XMLGrammarParser(SymbolTable symbolTable) {
         super((XMLParserConfiguration)ObjectFactory.createObject(
             "org.apache.xerces.xni.parser.XMLParserConfiguration",
-            "org.apache.xerces.parsers.XIncludeAwareParserConfiguration"
+            "org.apache.xerces.parsers.SecureProcessingConfiguration"
             ));
         fConfiguration.setProperty(Constants.XERCES_PROPERTY_PREFIX+Constants.SYMBOL_TABLE_PROPERTY, symbolTable);
     }

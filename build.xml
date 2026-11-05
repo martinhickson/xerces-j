@@ -73,8 +73,8 @@ Authors:
     <property name='jar.ant.nodeps' value='ant-nodeps.jar'/>
     <property name='jar.xjavac' value='xjavac.jar'/>
     
-    <property name='default.parser.config.name' value='XIncludeAwareParserConfiguration'/>
-    <property name='default.parser.config.qualified' value='org.apache.xerces.parsers.XIncludeAwareParserConfiguration'/>
+    <property name='default.parser.config.name' value='SecureProcessingConfiguration'/>
+    <property name='default.parser.config.qualified' value='org.apache.xerces.parsers.SecureProcessingConfiguration'/>
 
     <property name="year" value="1999-2022"/>
     <property name="copyright" value="Copyright &#169; ${year} The Apache Software Foundation. All Rights Reserved."/>
