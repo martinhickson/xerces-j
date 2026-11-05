@@ -46,7 +46,7 @@ public class XMLDocumentParser
     public XMLDocumentParser() {
         super((XMLParserConfiguration)ObjectFactory.createObject(
             "org.apache.xerces.xni.parser.XMLParserConfiguration",
-            "org.apache.xerces.parsers.XIncludeAwareParserConfiguration"
+            "org.apache.xerces.parsers.SecureProcessingConfiguration"
             ));
     } // <init>()
 
@@ -63,7 +63,7 @@ public class XMLDocumentParser
     public XMLDocumentParser(SymbolTable symbolTable) {
         super((XMLParserConfiguration)ObjectFactory.createObject(
             "org.apache.xerces.xni.parser.XMLParserConfiguration",
-            "org.apache.xerces.parsers.XIncludeAwareParserConfiguration"
+            "org.apache.xerces.parsers.SecureProcessingConfiguration"
             ));
         fConfiguration.setProperty(Constants.XERCES_PROPERTY_PREFIX+Constants.SYMBOL_TABLE_PROPERTY, symbolTable);
     } // <init>(SymbolTable)
@@ -76,7 +76,7 @@ public class XMLDocumentParser
                              XMLGrammarPool grammarPool) {
         super((XMLParserConfiguration)ObjectFactory.createObject(
             "org.apache.xerces.xni.parser.XMLParserConfiguration",
-            "org.apache.xerces.parsers.XIncludeAwareParserConfiguration"
+            "org.apache.xerces.parsers.SecureProcessingConfiguration"
             ));
         fConfiguration.setProperty(Constants.XERCES_PROPERTY_PREFIX+Constants.SYMBOL_TABLE_PROPERTY, symbolTable);
         fConfiguration.setProperty(Constants.XERCES_PROPERTY_PREFIX+Constants.XMLGRAMMAR_POOL_PROPERTY, grammarPool);

@@ -401,7 +401,7 @@ public class CoreDOMImplementationImpl
 		else {
 			// create default parser configuration validating against XMLSchemas
 			return new DOMParserImpl(
-				"org.apache.xerces.parsers.XIncludeAwareParserConfiguration",
+				"org.apache.xerces.parsers.SecureProcessingConfiguration",
 				schemaType);
 		}
 	}

@@ -110,7 +110,7 @@ public final class SecureProcessingConfiguration extends
     private static final int TOTAL_ENTITY_SIZE_LIMIT_DEFAULT_VALUE = 50000000;
     private static final int MAX_GENERAL_ENTITY_SIZE_LIMIT_DEFAULT_VALUE = Integer.MAX_VALUE;
     private static final int MAX_PARAMETER_ENTITY_SIZE_LIMIT_DEFAULT_VALUE = Integer.MAX_VALUE;
-    private static final boolean RESOLVE_EXTERNAL_ENTITIES_DEFAULT_VALUE = true;
+    private static final boolean RESOLVE_EXTERNAL_ENTITIES_DEFAULT_VALUE = false;
     
     protected final int ENTITY_EXPANSION_LIMIT_SYSTEM_VALUE;
     protected final int MAX_OCCUR_LIMIT_SYSTEM_VALUE;
@@ -179,12 +179,12 @@ public final class SecureProcessingConfiguration extends
         MAX_GENERAL_ENTITY_SIZE_LIMIT_SYSTEM_VALUE = getPropertyValue(MAX_GENERAL_ENTITY_SIZE_LIMIT_PROPERTY_NAME, MAX_GENERAL_ENTITY_SIZE_LIMIT_DEFAULT_VALUE);
         MAX_PARAMETER_ENTITY_SIZE_LIMIT_SYSTEM_VALUE = getPropertyValue(MAX_PARAMETER_ENTITY_SIZE_LIMIT_PROPERTY_NAME, MAX_PARAMETER_ENTITY_SIZE_LIMIT_DEFAULT_VALUE);
         RESOLVE_EXTERNAL_ENTITIES_SYSTEM_VALUE = getPropertyValue(RESOLVE_EXTERNAL_ENTITIES_PROPERTY_NAME, RESOLVE_EXTERNAL_ENTITIES_DEFAULT_VALUE);
+        if (!RESOLVE_EXTERNAL_ENTITIES_SYSTEM_VALUE) {
+            super.setFeature(EXTERNAL_GENERAL_ENTITIES, false);
+            super.setFeature(EXTERNAL_PARAMETER_ENTITIES, false);
+            super.setFeature(LOAD_EXTERNAL_DTD, false);
+        }
         if (fJavaSecurityManagerEnabled || fLimitSpecified) {
-            if (!RESOLVE_EXTERNAL_ENTITIES_SYSTEM_VALUE) {
-                super.setFeature(EXTERNAL_GENERAL_ENTITIES, false);
-                super.setFeature(EXTERNAL_PARAMETER_ENTITIES, false);
-                super.setFeature(LOAD_EXTERNAL_DTD, false);
-            }
             fSecurityManager = new org.apache.xerces.util.SecurityManager();
             fSecurityManager.setEntityExpansionLimit(ENTITY_EXPANSION_LIMIT_SYSTEM_VALUE);
             fSecurityManager.setMaxOccurNodeLimit(MAX_OCCUR_LIMIT_SYSTEM_VALUE);

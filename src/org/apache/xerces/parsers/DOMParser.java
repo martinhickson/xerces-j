@@ -127,7 +127,7 @@ public class DOMParser
     public DOMParser(SymbolTable symbolTable, XMLGrammarPool grammarPool) {
         super((XMLParserConfiguration)ObjectFactory.createObject(
             "org.apache.xerces.xni.parser.XMLParserConfiguration",
-            "org.apache.xerces.parsers.XIncludeAwareParserConfiguration"
+            "org.apache.xerces.parsers.SecureProcessingConfiguration"
             ));
 
         // set properties
