@@ -8,7 +8,7 @@
   <artifactId>xercesImpl</artifactId>
   <version>2.12.2</version>
   <name>Xerces2 Java Parser</name>
-  <description>Apache Xerces2 Java parser. Sources stay in src/ and tests/. The release workflow rewrites the groupId before publishing.</description>
+  <description>Xerces2 provides high performance, fully compliant XML parsers in the Apache Xerces family. It builds on the Xerces Native Interface (XNI), a framework for building parser components and configurations. The Apache Xerces2 parser is the reference implementation of XNI. It provides conforming XML Schema 1.0 and 1.1 processors, a complete implementation of the Document Object Model Level 3 Core and Load/Save Recommendations, a complete implementation of the XML Inclusions (XInclude) Recommendation, and support for OASIS XML Catalogs v1.1. It parses documents written according to the XML 1.1 Recommendation and handles namespaces according to the XML Namespaces 1.1 Recommendation.</description>
   <url>https://github.com/martinhickson/xerces-j</url>
 
   <licenses>
