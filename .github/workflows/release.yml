@@ -1,0 +1,257 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 2.12.3)'
+        required: true
+        default: '2.12.3'
+        type: string
+      release_branch:
+        description: 'Release branch name'
+        required: true
+        default: 'release/2.12.3'
+        type: string
+      source_branch:
+        description: 'Source branch to base the release on'
+        required: true
+        default: 'maintenance'
+        type: string
+      upload_to_github_packages:
+        description: 'Upload Maven artifacts to GitHub Packages'
+        required: false
+        default: false
+        type: boolean
+      deploy_to_maven_central:
+        description: 'Publish to Maven Central (io.github.martinhickson)'
+        required: false
+        default: true
+        type: boolean
+      central_group_id:
+        description: 'Maven groupId for Maven Central (verified namespace)'
+        required: false
+        default: 'io.github.martinhickson'
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Install Maven 3.9.9
+        run: |
+          curl -fsSL -o /tmp/maven.tgz https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.tar.gz
+          sudo tar -xzf /tmp/maven.tgz -C /opt
+          echo "/opt/apache-maven-3.9.9/bin" >> $GITHUB_PATH
+          echo "MAVEN_HOME=/opt/apache-maven-3.9.9" >> $GITHUB_ENV
+
+      - name: Show tool versions
+        run: |
+          java -version
+          mvn -version
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Checkout source branch
+        run: |
+          SOURCE_BRANCH="${{ github.event.inputs.source_branch }}"
+          echo "Checking out source branch: $SOURCE_BRANCH"
+          if ! git ls-remote --heads origin "$SOURCE_BRANCH" | grep -q "refs/heads/$SOURCE_BRANCH$"; then
+            echo "Error: Source branch $SOURCE_BRANCH does not exist remotely"
+            exit 1
+          fi
+          git fetch origin
+          git checkout $SOURCE_BRANCH
+          git pull origin $SOURCE_BRANCH
+
+      - name: Create or checkout release branch
+        run: |
+          SOURCE_BRANCH="${{ github.event.inputs.source_branch }}"
+          BRANCH_NAME="${{ github.event.inputs.release_branch }}"
+          if git show-ref --verify --quiet refs/heads/$BRANCH_NAME; then
+            echo "Release branch $BRANCH_NAME exists locally, checking out..."
+            git checkout $BRANCH_NAME
+            git pull origin $BRANCH_NAME || true
+          elif git ls-remote --heads origin "$BRANCH_NAME" | grep -q "refs/heads/$BRANCH_NAME$"; then
+            echo "Release branch $BRANCH_NAME exists remotely, checking out..."
+            git fetch origin $BRANCH_NAME:$BRANCH_NAME
+            git checkout $BRANCH_NAME
+            git pull origin $BRANCH_NAME || true
+          else
+            echo "Creating new release branch $BRANCH_NAME from source branch $SOURCE_BRANCH..."
+            git checkout -b $BRANCH_NAME
+          fi
+
+      - name: Set release version
+        run: |
+          set -euo pipefail
+          VERSION="${{ github.event.inputs.version }}"
+          UNDERSCORE="${VERSION//./_}"
+          sed -i \
+            -e "s/parser.Version' value='[^']*'/parser.Version' value='${VERSION}'/" \
+            -e "s/parser.version' value='[^']*'/parser.version' value='${VERSION}'/" \
+            -e "s/parser_version' value='[^']*'/parser_version' value='${UNDERSCORE}'/" \
+            build.xml
+          mvn versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
+          GOT=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Current version: $GOT"
+          if [ "$GOT" != "$VERSION" ]; then
+            echo "Error: Version mismatch. Expected $VERSION, got $GOT"
+            exit 1
+          fi
+
+      - name: Publish to Maven Central
+        if: github.event.inputs.deploy_to_maven_central == 'true'
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_CENTRAL_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_CENTRAL_GPG_PRIVATE_KEY }}
+          MAVEN_CENTRAL_GPG_PASSPHRASE: ${{ secrets.MAVEN_CENTRAL_GPG_PASSPHRASE }}
+          CENTRAL_GROUP_ID: ${{ github.event.inputs.central_group_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MAVEN_CENTRAL_USERNAME}" ] || [ -z "${MAVEN_CENTRAL_PASSWORD}" ] || [ -z "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" ]; then
+            echo "::error::Maven Central publishing is not configured. Set MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD, and MAVEN_CENTRAL_GPG_PRIVATE_KEY."
+            exit 1
+          fi
+          cp pom.xml /tmp/pom.xml.before-central
+          chmod +x .github/scripts/rewrite-group-id.sh
+          .github/scripts/rewrite-group-id.sh xerces "${CENTRAL_GROUP_ID}"
+          mkdir -p ~/.m2
+          if [ ! -f ~/.m2/settings.xml ]; then
+            printf '%s\n' '<settings><servers></servers></settings>' > ~/.m2/settings.xml
+          fi
+          if ! grep -q '<id>central</id>' ~/.m2/settings.xml; then
+            sed -i "/<\/servers>/i\\
+              <server>\\
+                <id>central</id>\\
+                <username>${MAVEN_CENTRAL_USERNAME}</username>\\
+                <password>${MAVEN_CENTRAL_PASSWORD}</password>\\
+              </server>" ~/.m2/settings.xml
+          fi
+          echo "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" | gpg --batch --import --pinentry-mode loopback
+          mvn deploy -Pcentral-release -DskipTests \
+            -Dmaven.javadoc.failOnError=false \
+            -Dgpg.passphrase="${MAVEN_CENTRAL_GPG_PASSPHRASE}"
+          cp /tmp/pom.xml.before-central pom.xml
+          if grep -n "${CENTRAL_GROUP_ID}" pom.xml; then
+            echo "::error::Maven Central groupId was left in the POM after restore"
+            exit 1
+          fi
+          echo "restored pom"
+
+      - name: Collect release artifacts
+        id: collect_artifacts
+        run: |
+          set -euo pipefail
+          STAGING=/tmp/release-staging
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          ARTIFACTS_FILE=$(mktemp)
+          find target -type f \( -name 'xercesImpl-*.jar' -o -name 'xercesImpl-*.pom' \) ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print 2>/dev/null | while read -r file; do
+            base=$(basename "$file")
+            cp "$file" "$STAGING/$base"
+            echo "$STAGING/$base" >> "$ARTIFACTS_FILE"
+          done
+          if [ -s "$ARTIFACTS_FILE" ]; then
+            {
+              echo "files<<EOF"
+              sort -u "$ARTIFACTS_FILE"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "files=" >> "$GITHUB_OUTPUT"
+            echo "Warning: No artifacts found"
+          fi
+
+      - name: Commit version change
+        run: |
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Set version to ${{ github.event.inputs.version }}"
+          fi
+
+      - name: Push release branch
+        run: |
+          BRANCH_NAME="${{ github.event.inputs.release_branch }}"
+          git push -u origin $BRANCH_NAME
+
+      - name: Create and push tag
+        id: check_tag
+        run: |
+          TAG_NAME="${{ github.event.inputs.version }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --tags origin "$TAG_NAME" | grep -q "refs/tags/$TAG_NAME$"; then
+            echo "Tag $TAG_NAME already exists, skipping..."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            git tag -a "$TAG_NAME" -m "Release ${{ github.event.inputs.version }}"
+            git push origin "$TAG_NAME"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: Xerces-J Release ${{ github.event.inputs.version }}
+          body: |
+            This is a release of Xerces-J version ${{ github.event.inputs.version }}.
+
+            Maven Central groupId `${{ github.event.inputs.central_group_id }}` when Maven Central deploy is enabled (default).
+
+            ```xml
+            <dependency>
+              <groupId>${{ github.event.inputs.central_group_id }}</groupId>
+              <artifactId>xercesImpl</artifactId>
+              <version>${{ github.event.inputs.version }}</version>
+            </dependency>
+            ```
+          files: ${{ steps.collect_artifacts.outputs.files }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to GitHub Packages
+        if: github.event.inputs.upload_to_github_packages == 'true'
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+            http://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+          REPO_URL="https://maven.pkg.github.com/${{ github.repository }}"
+          echo "Deploying artifacts to GitHub Packages at $REPO_URL"
+          mvn deploy -DskipTests \
+            -DaltDeploymentRepository=github::default::$REPO_URL
