@@ -34,7 +34,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>8</maven.compiler.release>
+    <maven.compiler.release>11</maven.compiler.release>
     <impl.name>Xerces-J ${project.version}</impl.name>
     <impl.version>${project.version}</impl.version>
     <VERSION>Xerces-J ${project.version}</VERSION>
@@ -196,25 +196,59 @@
       </plugin>
 
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-antrun-plugin</artifactId>
-        <version>3.1.0</version>
+        <groupId>com.coderplus.maven.plugins</groupId>
+        <artifactId>copy-rename-maven-plugin</artifactId>
+        <version>1.0.1</version>
         <executions>
           <execution>
             <id>english-message-bundles</id>
             <phase>process-resources</phase>
             <goals>
-              <goal>run</goal>
+              <goal>copy</goal>
             </goals>
             <configuration>
-              <target>
-                <copy todir="${project.build.outputDirectory}/org/apache/xerces/impl/msg">
-                  <fileset dir="${project.basedir}/src/org/apache/xerces/impl/msg" includes="*.properties"/>
-                  <mapper type="glob" from="*.properties" to="*_en.properties"/>
-                </copy>
-                <copy file="${project.basedir}/src/org/apache/xerces/impl/xpath/regex/message.properties"
-                      tofile="${project.build.outputDirectory}/org/apache/xerces/impl/xpath/regex/message_en.properties"/>
-              </target>
+              <fileSets>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/DOMMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/DOMMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/DatatypeMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/DatatypeMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/JAXPValidationMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/JAXPValidationMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/SAXMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/SAXMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/XIncludeMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/XIncludeMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/XMLMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/XMLMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/XMLSchemaMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/XMLSchemaMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/XMLSerializerMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/XMLSerializerMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/msg/XPointerMessages.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/msg/XPointerMessages_en.properties</destinationFile>
+                </fileSet>
+                <fileSet>
+                  <sourceFile>${project.basedir}/src/org/apache/xerces/impl/xpath/regex/message.properties</sourceFile>
+                  <destinationFile>${project.build.outputDirectory}/org/apache/xerces/impl/xpath/regex/message_en.properties</destinationFile>
+                </fileSet>
+              </fileSets>
             </configuration>
           </execution>
         </executions>
@@ -248,6 +282,7 @@
           <release>${maven.compiler.release}</release>
           <excludes>
             <exclude>org/apache/xerces/impl/Version.java</exclude>
+            <exclude>org/w3c/dom/html/HTMLDOMImplementation.java</exclude>
           </excludes>
           <testExcludes>
             <testExclude>dom/rename/**</testExclude>
@@ -265,6 +300,26 @@
                 <compileSourceRoot>${project.build.directory}/generated-sources/version</compileSourceRoot>
               </compileSourceRoots>
               <excludes combine.self="override"/>
+            </configuration>
+          </execution>
+          <execution>
+            <id>compile-html-dom-implementation</id>
+            <phase>compile</phase>
+            <goals>
+              <goal>compile</goal>
+            </goals>
+            <configuration>
+              <compileSourceRoots>
+                <compileSourceRoot>${project.basedir}/src</compileSourceRoot>
+              </compileSourceRoots>
+              <includes>
+                <include>org/w3c/dom/html/HTMLDOMImplementation.java</include>
+              </includes>
+              <excludes combine.self="override"/>
+              <compilerArgs>
+                <arg>--patch-module</arg>
+                <arg>jdk.xml.dom=${project.basedir}/src</arg>
+              </compilerArgs>
             </configuration>
           </execution>
         </executions>

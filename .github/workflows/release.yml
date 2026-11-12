@@ -104,12 +104,6 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ github.event.inputs.version }}"
-          UNDERSCORE="${VERSION//./_}"
-          sed -i \
-            -e "s/parser.Version' value='[^']*'/parser.Version' value='${VERSION}'/" \
-            -e "s/parser.version' value='[^']*'/parser.version' value='${VERSION}'/" \
-            -e "s/parser_version' value='[^']*'/parser_version' value='${UNDERSCORE}'/" \
-            build.xml
           mvn versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
           GOT=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "Current version: $GOT"
