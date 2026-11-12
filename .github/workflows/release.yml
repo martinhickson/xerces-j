@@ -209,8 +209,30 @@ jobs:
           EOF
           sed -i 's/^[[:space:]]*//' ~/.m2/settings.xml
           REPO_URL="https://maven.pkg.github.com/${{ github.repository }}"
-          echo "Deploying artifacts to GitHub Packages at $REPO_URL"
-          mvn -B deploy -DskipTests -DaltDeploymentRepository="github::default::${REPO_URL}"
+          cp pom.xml /tmp/pom.xml.before-github
+          # GitHub Packages rejects an artifactId that contains uppercase letters.
+          sed -i '0,/<artifactId>xercesImpl<\/artifactId>/s|<artifactId>xercesImpl</artifactId>|<artifactId>xercesimpl</artifactId>|' pom.xml
+          awk -v url="$REPO_URL" '
+            $0 ~ /^  <profiles>\r?$/ && !inserted {
+              print "  <distributionManagement>"
+              print "    <repository>"
+              print "      <id>github</id>"
+              print "      <name>GitHub Packages</name>"
+              print "      <url>" url "</url>"
+              print "    </repository>"
+              print "  </distributionManagement>"
+              inserted = 1
+            }
+            { print }
+          ' pom.xml > /tmp/pom.xml.github
+          mv /tmp/pom.xml.github pom.xml
+          echo "Deploying xerces:xercesimpl to GitHub Packages at $REPO_URL"
+          mvn -B deploy -DskipTests
+          cp /tmp/pom.xml.before-github pom.xml
+          if grep -n '<artifactId>xercesimpl</artifactId>' pom.xml || grep -n 'maven.pkg.github.com' pom.xml; then
+            echo "::error::GitHub Packages coordinates were left in the POM after restore"
+            exit 1
+          fi
 
       - name: Commit version change
         run: |
