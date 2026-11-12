@@ -70,6 +70,18 @@
         <excludes>
           <exclude>**/*.java</exclude>
           <exclude>manifest.xerces</exclude>
+          <!-- Service files are copied to META-INF/services. Ant does not also pack them at the source path. -->
+          <exclude>org/apache/xerces/jaxp/javax.xml.parsers.DocumentBuilderFactory</exclude>
+          <exclude>org/apache/xerces/jaxp/javax.xml.parsers.SAXParserFactory</exclude>
+          <exclude>org/apache/xerces/jaxp/datatype/javax.xml.datatype.DatatypeFactory</exclude>
+          <exclude>org/apache/xerces/jaxp/validation/javax.xml.validation.SchemaFactory</exclude>
+          <exclude>org/apache/xerces/stax/javax.xml.stream.XMLEventFactory</exclude>
+          <exclude>org/apache/xerces/parsers/org.xml.sax.driver</exclude>
+          <exclude>org/apache/xerces/dom/org.w3c.dom.DOMImplementationSourceList</exclude>
+          <exclude>org/apache/xerces/dom/org.apache.xerces.dom.DOMImplementationSourceImpl</exclude>
+          <exclude>org/apache/xerces/parsers/org.apache.xerces.xni.parser.DTDConfiguration</exclude>
+          <exclude>org/apache/xerces/parsers/org.apache.xerces.xni.parser.XML11Configuration</exclude>
+          <exclude>org/apache/xerces/parsers/org.apache.xerces.xni.parser.XMLParserConfiguration</exclude>
         </excludes>
       </resource>
       <resource>
