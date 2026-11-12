@@ -50,7 +50,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '11'
           distribution: 'temurin'
 
       - name: Install Maven 3.9.9
@@ -158,6 +158,10 @@ jobs:
           fi
           echo "restored pom"
 
+      - name: Package release artifacts
+        if: github.event.inputs.deploy_to_maven_central != 'true'
+        run: mvn -B package -DskipTests
+
       - name: Collect release artifacts
         id: collect_artifacts
         run: |
@@ -166,11 +170,13 @@ jobs:
           rm -rf "$STAGING"
           mkdir -p "$STAGING"
           ARTIFACTS_FILE=$(mktemp)
-          find target -type f \( -name 'xercesImpl-*.jar' -o -name 'xercesImpl-*.pom' \) ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print 2>/dev/null | while read -r file; do
-            base=$(basename "$file")
-            cp "$file" "$STAGING/$base"
-            echo "$STAGING/$base" >> "$ARTIFACTS_FILE"
-          done
+          if [ -d target ]; then
+            while IFS= read -r -d '' file; do
+              base=$(basename "$file")
+              cp "$file" "$STAGING/$base"
+              printf '%s\n' "$STAGING/$base" >> "$ARTIFACTS_FILE"
+            done < <(find target -type f \( -name 'xercesImpl-*.jar' -o -name 'xercesImpl-*.pom' \) ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print0)
+          fi
           if [ -s "$ARTIFACTS_FILE" ]; then
             {
               echo "files<<EOF"
@@ -181,6 +187,30 @@ jobs:
             echo "files=" >> "$GITHUB_OUTPUT"
             echo "Warning: No artifacts found"
           fi
+
+      - name: Upload to GitHub Packages
+        if: github.event.inputs.upload_to_github_packages == 'true'
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${GITHUB_ACTOR}</username>
+                <password>${GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+          sed -i 's/^[[:space:]]*//' ~/.m2/settings.xml
+          REPO_URL="https://maven.pkg.github.com/${{ github.repository }}"
+          echo "Deploying artifacts to GitHub Packages at $REPO_URL"
+          mvn -B deploy -DskipTests -DaltDeploymentRepository="github::default::${REPO_URL}"
 
       - name: Commit version change
         run: |
@@ -232,26 +262,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to GitHub Packages
-        if: github.event.inputs.upload_to_github_packages == 'true'
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
-            http://maven.apache.org/xsd/settings-1.0.0.xsd">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${{ github.actor }}</username>
-                <password>${{ secrets.GITHUB_TOKEN }}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
-          REPO_URL="https://maven.pkg.github.com/${{ github.repository }}"
-          echo "Deploying artifacts to GitHub Packages at $REPO_URL"
-          mvn deploy -DskipTests \
-            -DaltDeploymentRepository=github::default::$REPO_URL
