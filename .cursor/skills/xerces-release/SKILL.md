@@ -4,8 +4,8 @@ description: >-
   Releases martinhickson/xerces-j from the maintenance branch. Use when
   dispatching the Release workflow, bumping a bravura version, publishing
   to GitHub Packages or Maven Central, or changing the Xerces JDK,
-  groupId, or artifactId. Covers the JDK 11 build, the xercesImpl HTTP 422
-  failure, and the POM restore rules.
+  groupId, or artifactId. Covers the JDK 11 build, the GitHub Packages
+  coordinate rewrite, the xercesImpl HTTP 422 failure, and the POM restore rules.
 ---
 
 # Xerces-J release
@@ -22,7 +22,7 @@ The committed POM stays `xerces:xercesImpl`. `maven.compiler.release` is 11, so 
 |---|---|---|---|
 | Git, tag, GitHub Release assets | `xerces` | `xercesImpl` | Always |
 | Maven Central | `io.github.martinhickson` | `xercesImpl` | `deploy_to_maven_central` is true. Rewrite for the deploy, then restore the POM |
-| GitHub Packages | `xerces` | `xercesimpl` | `upload_to_github_packages` is true. Lowercase for the deploy, then restore the POM |
+| GitHub Packages | `github_packages_group_id`, default `io.github.martinhickson` | `github_packages_artifact_id`, default `xerces` | `upload_to_github_packages` is true. Rewrite for that deploy only, then restore the POM |
 
 Central and GitHub Packages can both run. Central publishes first. GitHub Packages then deploys the restored `xerces` POM. Collected release assets are copied before the GitHub Packages rewrite, so the GitHub Release still attaches `xercesImpl-*.jar`.
 
@@ -47,7 +47,9 @@ env -u GITHUB_TOKEN gh workflow run release.yml --ref maintenance \
   -f source_branch=maintenance \
   -f upload_to_github_packages=true \
   -f deploy_to_maven_central=false \
-  -f central_group_id=io.github.martinhickson
+  -f central_group_id=io.github.martinhickson \
+  -f github_packages_group_id=io.github.martinhickson \
+  -f github_packages_artifact_id=xerces
 ```
 
 `deploy_to_maven_central` defaults to true. A GitHub Packages-only cut must pass `false`.
@@ -65,11 +67,13 @@ The version commit, release branch `release/<version>`, and annotated tag are cr
 
 Publishing `xercesImpl` returns HTTP 422. GitHub Packages rejects an artifactId that contains an uppercase letter. The repository is `xerces-j`, so the deployed POM also needs a project-level `distributionManagement` entry or GitHub looks for a repository named after the package.
 
+`github_packages_group_id` defaults to `io.github.martinhickson`. `github_packages_artifact_id` defaults to `xerces` and must match `^[a-z0-9-]+$`. These inputs do not change the Maven Central deploy. Central still uses `central_group_id` and keeps `xercesImpl`.
+
 The upload step must:
 
 1. Run only after `target/` exists. When Central is off, `mvn -B package -DskipTests` runs first. Collect then copies `target/xercesImpl-*.jar` and `target/xercesImpl-*.pom`, excluding sources and javadoc jars.
 2. Copy `pom.xml` aside.
-3. Replace the first `<artifactId>xercesImpl</artifactId>` with `xercesimpl`.
+3. Replace the first `<groupId>xerces</groupId>` with `github_packages_group_id` and the first `<artifactId>xercesImpl</artifactId>` with `github_packages_artifact_id`. Confirm both with `mvn help:evaluate` before deploy.
 4. Insert this block immediately before `  <profiles>` (CRLF-safe):
 
 ```xml
@@ -83,7 +87,7 @@ The upload step must:
 ```
 
 5. Deploy with `mvn -B deploy -DskipTests`. The Maven server id `github` uses `GITHUB_ACTOR` and `GITHUB_TOKEN`. The job needs `packages: write`. Do not pass `altDeploymentRepository`; the POM URL is the repository.
-6. Restore the saved POM. Fail if `xercesimpl` or `maven.pkg.github.com` remains.
+6. Restore the saved POM. Fail if `maven.pkg.github.com` remains, or if the GitHub Packages groupId or artifactId remains when it differs from the committed `xerces` / `xercesImpl`.
 
 Upload runs before commit, push, and tag. A failed upload must not create a tag.
 

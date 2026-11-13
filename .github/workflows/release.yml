@@ -33,6 +33,16 @@ on:
         required: false
         default: 'io.github.martinhickson'
         type: string
+      github_packages_group_id:
+        description: 'Maven groupId for GitHub Packages only'
+        required: false
+        default: 'io.github.martinhickson'
+        type: string
+      github_packages_artifact_id:
+        description: 'Maven artifactId for GitHub Packages only (lowercase letters, digits, or hyphens)'
+        required: false
+        default: 'xerces'
+        type: string
 
 jobs:
   release:
@@ -187,8 +197,18 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGES_GROUP_ID: ${{ github.event.inputs.github_packages_group_id }}
+          PACKAGES_ARTIFACT_ID: ${{ github.event.inputs.github_packages_artifact_id }}
         run: |
           set -euo pipefail
+          if ! printf '%s' "$PACKAGES_GROUP_ID" | grep -Eq '^[A-Za-z0-9_.-]+$'; then
+            echo "::error::github_packages_group_id must contain only letters, digits, dots, underscores, and hyphens"
+            exit 1
+          fi
+          if ! printf '%s' "$PACKAGES_ARTIFACT_ID" | grep -Eq '^[a-z0-9-]+$'; then
+            echo "::error::github_packages_artifact_id must contain only lowercase letters, digits, and hyphens. GitHub Packages returns HTTP 422 otherwise."
+            exit 1
+          fi
           mkdir -p ~/.m2
           cat > ~/.m2/settings.xml <<EOF
           <settings>
@@ -204,8 +224,15 @@ jobs:
           sed -i 's/^[[:space:]]*//' ~/.m2/settings.xml
           REPO_URL="https://maven.pkg.github.com/${{ github.repository }}"
           cp pom.xml /tmp/pom.xml.before-github
-          # GitHub Packages rejects an artifactId that contains uppercase letters.
-          sed -i '0,/<artifactId>xercesImpl<\/artifactId>/s|<artifactId>xercesImpl</artifactId>|<artifactId>xercesimpl</artifactId>|' pom.xml
+          # GitHub Packages only. Maven Central keeps central_group_id and xercesImpl.
+          sed -i "0,/<groupId>xerces<\\/groupId>/s|<groupId>xerces</groupId>|<groupId>${PACKAGES_GROUP_ID}</groupId>|" pom.xml
+          sed -i "0,/<artifactId>xercesImpl<\\/artifactId>/s|<artifactId>xercesImpl</artifactId>|<artifactId>${PACKAGES_ARTIFACT_ID}</artifactId>|" pom.xml
+          GOT_G=$(mvn help:evaluate -Dexpression=project.groupId -q -DforceStdout)
+          GOT_A=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
+          if [ "$GOT_G" != "$PACKAGES_GROUP_ID" ] || [ "$GOT_A" != "$PACKAGES_ARTIFACT_ID" ]; then
+            echo "::error::GitHub Packages rewrite failed. Expected ${PACKAGES_GROUP_ID}:${PACKAGES_ARTIFACT_ID}, got ${GOT_G}:${GOT_A}"
+            exit 1
+          fi
           awk -v url="$REPO_URL" '
             $0 ~ /^  <profiles>\r?$/ && !inserted {
               print "  <distributionManagement>"
@@ -220,11 +247,19 @@ jobs:
             { print }
           ' pom.xml > /tmp/pom.xml.github
           mv /tmp/pom.xml.github pom.xml
-          echo "Deploying xerces:xercesimpl to GitHub Packages at $REPO_URL"
+          echo "Deploying ${PACKAGES_GROUP_ID}:${PACKAGES_ARTIFACT_ID} to GitHub Packages at $REPO_URL"
           mvn -B deploy -DskipTests
           cp /tmp/pom.xml.before-github pom.xml
-          if grep -n '<artifactId>xercesimpl</artifactId>' pom.xml || grep -n 'maven.pkg.github.com' pom.xml; then
-            echo "::error::GitHub Packages coordinates were left in the POM after restore"
+          if grep -n 'maven.pkg.github.com' pom.xml; then
+            echo "::error::GitHub Packages repository URL was left in the POM after restore"
+            exit 1
+          fi
+          if [ "$PACKAGES_GROUP_ID" != "xerces" ] && grep -n "<groupId>${PACKAGES_GROUP_ID}</groupId>" pom.xml; then
+            echo "::error::GitHub Packages groupId was left in the POM after restore"
+            exit 1
+          fi
+          if [ "$PACKAGES_ARTIFACT_ID" != "xercesImpl" ] && grep -n "<artifactId>${PACKAGES_ARTIFACT_ID}</artifactId>" pom.xml; then
+            echo "::error::GitHub Packages artifactId was left in the POM after restore"
             exit 1
           fi
 
@@ -264,12 +299,22 @@ jobs:
           body: |
             This is a release of Xerces-J version ${{ github.event.inputs.version }}.
 
-            Maven Central groupId `${{ github.event.inputs.central_group_id }}` when Maven Central deploy is enabled (default).
+            Maven Central groupId `${{ github.event.inputs.central_group_id }}` and artifactId `xercesImpl` when Maven Central deploy is enabled (default).
 
             ```xml
             <dependency>
               <groupId>${{ github.event.inputs.central_group_id }}</groupId>
               <artifactId>xercesImpl</artifactId>
+              <version>${{ github.event.inputs.version }}</version>
+            </dependency>
+            ```
+
+            GitHub Packages uses a separate coordinate when that upload is enabled. The committed POM stays `xerces:xercesImpl`.
+
+            ```xml
+            <dependency>
+              <groupId>${{ github.event.inputs.github_packages_group_id }}</groupId>
+              <artifactId>${{ github.event.inputs.github_packages_artifact_id }}</artifactId>
               <version>${{ github.event.inputs.version }}</version>
             </dependency>
             ```
